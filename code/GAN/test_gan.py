@@ -43,7 +43,7 @@ class Generator(nn.Module):
 
     def forward(self, z):
         # shape of z: [batchsize, latent_dim]
-
+        # image shape: [batchsize, dims, h, w]
         output = self.model(z)
         image = output.reshape(z.shape[0], *image_size)
 
@@ -72,7 +72,7 @@ class Discriminator(nn.Module):
 
     def forward(self, image):
         # shape of image: [batchsize, 1, 28, 28]
-
+        # prob shape: [batchsize, 1]
         prob = self.model(image.reshape(image.shape[0], -1))
 
         return prob
@@ -111,27 +111,29 @@ if use_gpu:
 num_epoch = 200
 for epoch in range(num_epoch):
     for i, mini_batch in enumerate(dataloader):
+        # 只要X, 不要y(label)
+        # gt_images shape = (batch,dims,h,w)
         gt_images, _ = mini_batch
-
-
+        # torch.randn()则其中每个元素都是从N(0,1)分布取出，并不意味着取出的这些元素组成 N(0,1)分布
         z = torch.randn(batch_size, latent_dim)
 
         if use_gpu:
             gt_images = gt_images.to("cuda")
             z = z.to("cuda")
-
+        
         pred_images = generator(z)
         g_optimizer.zero_grad()
-
+        # 更新 Generator
+        # 绝对值可微分吗？
         recons_loss = torch.abs(pred_images-gt_images).mean()
-
+        
         g_loss = recons_loss*0.05 + loss_fn(discriminator(pred_images), labels_one)
 
         g_loss.backward()
         g_optimizer.step()
-
+        # 更新 Discriminator
         d_optimizer.zero_grad()
-
+        
         real_loss = loss_fn(discriminator(gt_images), labels_one)
         fake_loss = loss_fn(discriminator(pred_images.detach()), labels_zero)
         d_loss = (real_loss + fake_loss)
